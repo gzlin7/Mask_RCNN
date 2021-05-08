@@ -1006,7 +1006,45 @@ def build_fpn_mask_graph(rois, feature_maps, image_meta,
                            name="mrcnn_mask_deconv")(x)
     x = KL.TimeDistributed(KL.Conv2D(num_classes, (1, 1), strides=1, activation="sigmoid"),
                            name="mrcnn_mask")(x)
-    return x
+    # return x
+
+    # contextual fusion branch
+    full_img_window = image_meta[4]
+    full_img_rois = []
+    y = PyramidROIAlign([pool_size, pool_size],
+                        name="contextual_roi_align")([rois, image_meta] + feature_maps)
+
+    # Conv layers
+    y = KL.TimeDistributed(KL.Conv2D(256, (3, 3), padding="same"),
+                           name="fmrcnn_mask_conv1")(y)
+    y = KL.TimeDistributed(BatchNorm(),
+                           name='fmrcnn_mask_bn1')(y, training=train_bn)
+    y = KL.Activation('relu')(y)
+
+    y = KL.TimeDistributed(KL.Conv2D(256, (3, 3), padding="same"),
+                           name="fmrcnn_mask_conv2")(y)
+    y = KL.TimeDistributed(BatchNorm(),
+                           name='fmrcnn_mask_bn2')(y, training=train_bn)
+    y = KL.Activation('relu')(y)
+
+    y = KL.TimeDistributed(KL.Conv2D(256, (3, 3), padding="same"),
+                           name="fmrcnn_mask_conv3")(y)
+    y = KL.TimeDistributed(BatchNorm(),
+                           name='fmrcnn_mask_bn3')(y, training=train_bn)
+
+    y = KL.Activation('relu')(y)
+
+    y = KL.TimeDistributed(KL.Conv2D(256, (3, 3), padding="same"),
+                           name="fmrcnn_mask_conv4")(y)
+    y = KL.TimeDistributed(BatchNorm(),
+                           name='fmrcnn_mask_bn4')(y, training=train_bn)
+    y = KL.Activation('relu')(y)
+
+    y = KL.TimeDistributed(KL.Conv2DTranspose(256, (2, 2), strides=2, activation="relu"),
+                           name="fmrcnn_mask_deconv")(y)
+    y = KL.TimeDistributed(KL.Conv2D(num_classes, (1, 1), strides=1, activation="sigmoid"),
+                           name="fmrcnn_mask")(y)
+    return x + y
 
 
 ############################################################
