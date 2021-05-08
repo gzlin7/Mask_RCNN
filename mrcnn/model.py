@@ -252,7 +252,7 @@ def clip_boxes_graph(boxes, window):
     return clipped
 
 
-class ProposalLayer(KE.Layer):
+class ProposalLayer(KL.Layer):
     """Receives anchor scores and selects a subset to pass as proposals
     to the second stage. Filtering is done based on anchor scores and
     non-max suppression to remove overlaps. It also applies bounding
@@ -341,7 +341,7 @@ def log2_graph(x):
     return tf.math.log(x) / tf.math.log(2.0)
 
 
-class PyramidROIAlign(KE.Layer):
+class PyramidROIAlign(KL.Layer):
     """Implements ROI Pooling on multiple levels of the feature pyramid.
 
     Params:
@@ -619,7 +619,7 @@ def detection_targets_graph(proposals, gt_class_ids, gt_boxes, gt_masks, config)
     return rois, roi_gt_class_ids, deltas, masks
 
 
-class DetectionTargetLayer(KE.Layer):
+class DetectionTargetLayer(KL.Layer):
     """Subsamples proposals and generates target box refinement, class_ids,
     and masks for each.
 
@@ -779,7 +779,7 @@ def refine_detections_graph(rois, probs, deltas, window, config):
     return detections
 
 
-class DetectionLayer(KE.Layer):
+class DetectionLayer(KL.Layer):
     """Takes classified proposal boxes and their bounding box deltas and
     returns the final detection boxes.
 
@@ -1009,10 +1009,13 @@ def build_fpn_mask_graph(rois, feature_maps, image_meta,
     # return x
 
     # contextual fusion branch
-    full_img_window = image_meta[4]
-    full_img_rois = []
+    full_img = tf.constant([0.0, 0.0, 1.0, 1.0])
+    zero_img = tf.constant([0.0, 0.0, 0.0, 0.0])
+    full_img_rois = tf.repeat([full_img, zero_img], repeats=[1, 99], axis=0)
+    full_img_rois = tf.expand_dims(full_img_rois, axis=0)
+
     y = PyramidROIAlign([pool_size, pool_size],
-                        name="contextual_roi_align")([rois, image_meta] + feature_maps)
+                        name="contextual_roi_align")([full_img_rois, image_meta] + feature_maps)
 
     # Conv layers
     y = KL.TimeDistributed(KL.Conv2D(256, (3, 3), padding="same"),
@@ -2087,6 +2090,8 @@ class MaskRCNN():
 
             # Create masks for detections
             detection_boxes = KL.Lambda(lambda x: x[..., :4])(detections)
+            print("Detection Boxes")
+            print(detection_boxes)
             mrcnn_mask = build_fpn_mask_graph(detection_boxes, mrcnn_feature_maps,
                                               input_image_meta,
                                               config.MASK_POOL_SIZE,
@@ -2575,7 +2580,8 @@ class MaskRCNN():
                 "rois": final_rois,
                 "class_ids": final_class_ids,
                 "scores": final_scores,
-                "masks": final_masks,
+                "masks": final_masks
+                # "detections": detections[i],
             })
         return results
 
