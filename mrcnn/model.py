@@ -1010,9 +1010,19 @@ def build_fpn_mask_graph(rois, feature_maps, image_meta,
 
     # contextual fusion branch
     full_img_window = image_meta[4]
-    full_img_rois = []
+    # full_img_rois = tf.identity(rois)
+    # full_img_rois_list = tf.unstack(full_img_rois)
+    # full_img_rois_list[0][0][:] = (0, 0, 1, 1)
+    # full_img_rois_list[0][1:][:] = (0, 0, 0, 0)
+    # full_img_rois = tf.stack(full_img_rois_list)
+    full_img = tf.constant([0.0, 0.0, 1.0, 1.0])
+    zero_img = tf.constant([0.0, 0.0, 0.0, 0.0])
+    full_img_rois = tf.repeat([full_img, zero_img], repeats=[1, 99], axis=0)
+    full_img_rois = tf.expand_dims(full_img_rois, axis=0)
+    #full_img_rois[0, 0, :] = (0, 0, 1, 1)
+    #full_img_rois[0, 1:, :] = (0, 0, 0, 0)
     y = PyramidROIAlign([pool_size, pool_size],
-                        name="contextual_roi_align")([rois, image_meta] + feature_maps)
+                        name="contextual_roi_align")([full_img_rois, image_meta] + feature_maps)
 
     # Conv layers
     y = KL.TimeDistributed(KL.Conv2D(256, (3, 3), padding="same"),
